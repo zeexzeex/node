@@ -1365,6 +1365,63 @@ test('runs timers as setTime passes ticks', (context) => {
 });
 ```
 
+### Temporal
+
+The mock timers API also allows mocking the [`Temporal.Now`][] methods that
+read the current time. This is useful for testing code that reads the current
+time through the Temporal API instead of the legacy `Date` object.
+
+Enabling the `'Temporal.Now'` api mocks the following methods:
+
+* `Temporal.Now.instant()`
+* `Temporal.Now.zonedDateTimeISO()`
+* `Temporal.Now.plainDateTimeISO()`
+* `Temporal.Now.plainDateISO()`
+* `Temporal.Now.plainTimeISO()`
+
+`Temporal.Now.timeZoneId()` is not mocked and keeps returning the actual
+system time zone. Only the clock is virtualized, not the time zone.
+
+**Note:** `Date` and `Temporal.Now` share the same internal mock clock. When
+both are mocked, `Date.now()` and `Temporal.Now.instant().epochMilliseconds`
+always agree, and advancing the clock with `.tick()` or `.setTime()` advances
+both.
+
+**Note:** The mock clock has millisecond precision, while `Temporal.Instant`
+has nanosecond precision. Mocked values are derived from the clock's
+millisecond value, so the sub-millisecond digits of
+`Temporal.Now.instant().epochNanoseconds` are always zero.
+
+```mjs
+import assert from 'node:assert';
+import { test } from 'node:test';
+
+test('mocks Temporal.Now', (context) => {
+  // Optionally choose what to mock
+  context.mock.timers.enable({ apis: ['Temporal.Now'], now: 9999 });
+  assert.strictEqual(Temporal.Now.instant().epochMilliseconds, 9999);
+
+  // Advance in time will also advance Temporal.Now
+  context.mock.timers.tick(1);
+  assert.strictEqual(Temporal.Now.instant().epochMilliseconds, 10000);
+});
+```
+
+```cjs
+const assert = require('node:assert');
+const { test } = require('node:test');
+
+test('mocks Temporal.Now', (context) => {
+  // Optionally choose what to mock
+  context.mock.timers.enable({ apis: ['Temporal.Now'], now: 9999 });
+  assert.strictEqual(Temporal.Now.instant().epochMilliseconds, 9999);
+
+  // Advance in time will also advance Temporal.Now
+  context.mock.timers.tick(1);
+  assert.strictEqual(Temporal.Now.instant().epochMilliseconds, 10000);
+});
+```
+
 ## Snapshot testing
 
 <!-- YAML
@@ -2914,7 +2971,8 @@ Mocking timers is a technique commonly used in software testing to simulate and
 control the behavior of timers, such as `setInterval` and `setTimeout`,
 without actually waiting for the specified time intervals.
 
-MockTimers is also able to mock the `Date` object.
+MockTimers is also able to mock the `Date` object and the [`Temporal.Now`][]
+methods.
 
 The [`MockTracker`][] provides a top-level `timers` export
 which is a `MockTimers` instance.
@@ -2926,6 +2984,9 @@ added:
   - v20.4.0
   - v18.19.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/REPLACEME
+    description: Added support for mocking `Temporal.Now`.
   - version:
     - v21.2.0
     - v20.11.0
@@ -2940,19 +3001,25 @@ Enables timer mocking for the specified timers.
   mocking. The following properties are supported:
   * `apis` {Array} An optional array containing the timers to mock.
     The currently supported timer values are `'setInterval'`, `'setTimeout'`, `'setImmediate'`,
-    and `'Date'`. **Default:** `['setInterval', 'setTimeout', 'setImmediate', 'Date']`.
+    `'Date'`, and `'Temporal.Now'`.
+    **Default:** `['setInterval', 'setTimeout', 'setImmediate', 'Date', 'Temporal.Now']`.
     If no array is provided, all time related APIs (`'setInterval'`, `'clearInterval'`,
-    `'setTimeout'`, `'clearTimeout'`, `'setImmediate'`, `'clearImmediate'`, and
-    `'Date'`) will be mocked by default.
+    `'setTimeout'`, `'clearTimeout'`, `'setImmediate'`, `'clearImmediate'`,
+    `'Date'`, and `'Temporal.Now'`) will be mocked by default.
   * `now` {number | Date} An optional number or Date object representing the
     initial time (in milliseconds) to use as the value
-    for `Date.now()`. **Default:** `0`.
+    for `Date.now()` and the mocked [`Temporal.Now`][] methods. **Default:** `0`.
 
 **Note:** When you enable mocking for a specific timer, its associated
 clear function will also be implicitly mocked.
 
-**Note:** Mocking `Date` will affect the behavior of the mocked timers
-as they use the same internal clock.
+**Note:** Mocking `Date` or `Temporal.Now` will affect the behavior of the
+mocked timers as they use the same internal clock.
+
+**Note:** Mocking `Temporal.Now` only virtualizes the clock.
+`Temporal.Now.timeZoneId()` is not mocked and returns the actual system time
+zone. Since the internal clock has millisecond precision, the sub-millisecond
+digits of `Temporal.Now.instant().epochNanoseconds` are always zero.
 
 Example usage without setting initial time:
 
@@ -3002,7 +3069,8 @@ All timers (`'setInterval'`, `'clearInterval'`, `'setTimeout'`, `'clearTimeout'`
 `'setImmediate'`, and `'clearImmediate'`) will be mocked. The `setInterval`,
 `clearInterval`, `setTimeout`, `clearTimeout`, `setImmediate`, and
 `clearImmediate` functions from `node:timers`, `node:timers/promises`, and
-`globalThis` will be mocked. As well as the global `Date` object.
+`globalThis` will be mocked. As well as the global `Date` object and the
+[`Temporal.Now`][] methods.
 
 ### `timers.reset()`
 
@@ -4957,6 +5025,7 @@ test.describe('my suite', (suite) => {
 [`MockTracker`]: #class-mocktracker
 [`NODE_V8_COVERAGE`]: cli.md#node_v8_coveragedir
 [`SuiteContext`]: #class-suitecontext
+[`Temporal.Now`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/Now
 [`TestContext`]: #class-testcontext
 [`TracingChannel`]: diagnostics_channel.md#class-tracingchannel
 [`assert.throws`]: assert.md#assertthrowsfn-error-message
